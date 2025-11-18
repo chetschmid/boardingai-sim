@@ -1,0 +1,260 @@
+openapi: 3.0.0
+info:
+  title: Boarding.ai Simulation API
+  version: 1.0.0
+  description: >
+    Simulation API for Boarding.ai. The /simulate endpoint accepts a flight
+    boarding scenario and returns operational and economic metrics for the
+    specified boarding strategy vs a baseline.
+
+servers:
+  - url: https://api.boarding.ai
+    description: Production (placeholder)
+  - url: https://sandbox.boarding.ai
+    description: Sandbox / staging (placeholder)
+
+paths:
+  /simulate:
+    post:
+      summary: Run boarding simulation
+      description: >
+        Runs N simulations for a given aircraft, load, and boarding strategy.
+        Returns boarding time metrics, aisle conflict information, and
+        estimated cost savings vs a baseline method.
+      operationId: simulateBoarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulateRequest'
+      responses:
+        '200':
+          description: Simulation results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulateResponse'
+        '400':
+          description: Invalid input payload
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    Aircraft:
+      type: object
+      required:
+        - type
+        - num_rows
+        - seats_per_row
+        - num_aisles
+      properties:
+        type:
+          type: string
+          description: Aircraft model identifier
+          example: A321
+        num_rows:
+          type: integer
+          description: Total number of rows modeled
+          example: 30
+        seats_per_row:
+          type: integer
+          description: Number of seats per row
+          example: 6
+        num_aisles:
+          type: integer
+          description: Number of aisles (1 for narrow-body)
+          example: 1
+
+    Load:
+      type: object
+      required:
+        - load_factor
+      properties:
+        load_factor:
+          type: number
+          format: float
+          description: Fraction of seats occupied (0.0–1.0)
+          example: 0.9
+
+    Boarding:
+      type: object
+      required:
+        - method
+        - baseline_method
+      properties:
+        method:
+          type: string
+          description: Boarding method for the simulation
+          example: steffen
+          enum:
+            - random
+            - back_to_front
+            - front_to_back
+            - steffen
+            - outside_in
+            - groups
+        baseline_method:
+          type: string
+          description: Boarding method used as baseline for comparison
+          example: random
+          enum:
+            - random
+            - back_to_front
+            - front_to_back
+            - steffen
+            - outside_in
+            - groups
+
+    Bags:
+      type: object
+      required:
+        - carry_on_rate
+        - bin_capacity_per_row
+      properties:
+        carry_on_rate:
+          type: number
+          format: float
+          description: Fraction of passengers with large carry-ons
+          example: 0.7
+        bin_capacity_per_row:
+          type: integer
+          description: Number of carry-on bags that fit per row
+          example: 8
+
+    Behavior:
+      type: object
+      properties:
+        walking_speed_mean:
+          type: number
+          format: float
+          description: Average walking speed in the aisle (m/s)
+          example: 1.3
+        stow_time_carry_on_mean:
+          type: number
+          format: float
+          description: Average time to stow a large carry-on (seconds)
+          example: 12
+        seat_slide_time_mean:
+          type: number
+          format: float
+          description: Time to step into row and sit (seconds)
+          example: 3
+        late_pax_rate:
+          type: number
+          format: float
+          description: Fraction of passengers boarding out of order
+          example: 0.02
+
+    Controls:
+      type: object
+      properties:
+        time_step:
+          type: number
+          format: float
+          description: Simulation tick resolution in seconds
+          example: 0.5
+          default: 0.5
+        num_runs:
+          type: integer
+          description: Number of simulation runs for this scenario
+          example: 25
+          default: 25
+        cost_per_minute_delay:
+          type: number
+          format: float
+          description: Cost per minute of delay (USD) used for savings calculation
+          example: 75
+          default: 75
+
+    SimulateRequest:
+      type: object
+      required:
+        - aircraft
+        - load
+        - boarding
+        - bags
+      properties:
+        aircraft:
+          $ref: '#/components/schemas/Aircraft'
+        load:
+          $ref: '#/components/schemas/Load'
+        boarding:
+          $ref: '#/components/schemas/Boarding'
+        bags:
+          $ref: '#/components/schemas/Bags'
+        behavior:
+          $ref: '#/components/schemas/Behavior'
+        controls:
+          $ref: '#/components/schemas/Controls'
+
+    Assumptions:
+      type: object
+      properties:
+        flights_per_year:
+          type: integer
+          description: Number of flights per year used for annual savings calculation
+          example: 1825
+
+    SimulateResponse:
+      type: object
+      required:
+        - total_boarding_time_sec
+        - num_aisle_conflicts
+        - baseline_boarding_time_sec
+        - delta_vs_baseline_sec
+        - percent_faster_vs_baseline
+        - dollars_saved_per_flight
+        - dollars_saved_per_year
+      properties:
+        total_boarding_time_sec:
+          type: integer
+          description: Total time until all passengers are seated (seconds)
+          example: 1830
+        time_to_50_percent_sec:
+          type: integer
+          description: Time until 50% of passengers are seated (seconds)
+          example: 740
+        time_to_90_percent_sec:
+          type: integer
+          description: Time until 90% of passengers are seated (seconds)
+          example: 1540
+        num_aisle_conflicts:
+          type: integer
+          description: Total number of aisle blockage events
+          example: 142
+        max_aisle_queue_length:
+          type: integer
+          description: Maximum number of passengers waiting in the aisle at once
+          example: 12
+        avg_wait_time_per_pax_sec:
+          type: number
+          format: float
+          description: Average waiting (non-moving) time per passenger (seconds)
+          example: 28
+        baseline_boarding_time_sec:
+          type: integer
+          description: Total boarding time for the baseline method (seconds)
+          example: 2020
+        delta_vs_baseline_sec:
+          type: integer
+          description: Difference vs baseline boarding time (negative = faster)
+          example: -190
+        percent_faster_vs_baseline:
+          type: number
+          format: float
+          description: Percentage faster than baseline method
+          example: 9.4
+        dollars_saved_per_flight:
+          type: number
+          format: float
+          description: Estimated savings per flight (USD)
+          example: 225
+        dollars_saved_per_year:
+          type: number
+          format: float
+          description: Estimated annual savings (USD)
+          example: 410000
+        assumptions:
+          $ref: '#/components/schemas/Assumptions'
