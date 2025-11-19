@@ -3,7 +3,9 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
 
+# --- FastAPI Application Setup ---
 app = FastAPI(
     title="Boarding.ai Simulation API",
     version="1.0.0",
@@ -15,7 +17,16 @@ app = FastAPI(
     ),
 )
 
-# ----- Pydantic models matching our OpenAPI schema (simplified) -----
+# --- CORS Middleware for Base44 frontend ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],        # allow all origins for now
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ----- Pydantic models matching our OpenAPI schema -----
 
 class Aircraft(BaseModel):
     type: str
@@ -86,9 +97,6 @@ async def simulate(req: SimulateRequest) -> SimulateResponse:
     but realistic-looking response that matches our OpenAPI contract.
     Later, we will replace this stub with the real simulation engine.
     """
-
-    # TODO: plug in real simulation engine using `req` data.
-    # For now we just return static example values.
     return SimulateResponse(
         total_boarding_time_sec=1830,
         time_to_50_percent_sec=740,
