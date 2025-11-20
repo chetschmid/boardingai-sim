@@ -1,32 +1,32 @@
 # backend/app.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 from fastapi.middleware.cors import CORSMiddleware
+import uuid
 
-# --- FastAPI Application Setup ---
+# -----------------------------------------
+# FastAPI Setup
+# -----------------------------------------
+
 app = FastAPI(
     title="Boarding.ai Simulation API",
-    version="1.0.0",
-    description=(
-        "Simulation service for Boarding.ai. "
-        "The /simulate endpoint accepts a flight boarding scenario and "
-        "returns operational and economic metrics for the specified "
-        "boarding strategy vs a baseline."
-    ),
+    version="1.1.0",
+    description="Simulation engine backend for Boarding.ai"
 )
 
-# --- CORS Middleware for Base44 frontend ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # allow all origins for now
+    allow_origins=["*"],        # Allow all origins for Base44 during development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ----- Pydantic models matching our OpenAPI schema -----
+# -----------------------------------------
+# Data Models
+# -----------------------------------------
 
 class Aircraft(BaseModel):
     type: str
@@ -68,36 +68,42 @@ class Assumptions(BaseModel):
     flights_per_year: Optional[int] = 1825
 
 class SimulateResponse(BaseModel):
+    run_id: str
     total_boarding_time_sec: int
     time_to_50_percent_sec: Optional[int] = None
     time_to_90_percent_sec: Optional[int] = None
-
     num_aisle_conflicts: int
     max_aisle_queue_length: Optional[int] = None
     avg_wait_time_per_pax_sec: Optional[float] = None
-
     baseline_boarding_time_sec: int
     delta_vs_baseline_sec: int
     percent_faster_vs_baseline: float
-
     dollars_saved_per_flight: float
     dollars_saved_per_year: float
-
     assumptions: Optional[Assumptions] = None
 
 
-# ----- Stub implementation of /simulate -----
+# -----------------------------------------
+# In-memory run storage
+# -----------------------------------------
+
+RUN_STORAGE: Dict[str, SimulateResponse] = {}
+
+# -----------------------------------------
+# Simulation Endpoint (Stub)
+# -----------------------------------------
 
 @app.post("/simulate", response_model=SimulateResponse)
-async def simulate(req: SimulateRequest) -> SimulateResponse:
+async def simulate(req: SimulateRequest):
     """
-    Stub implementation of the boarding simulation.
+    Temporary simulation stub — returns realistic placeholder data.
+    Later, replace the logic with the real simulation engine.
+    """
 
-    For now this ignores the detailed inputs and returns a hard-coded
-    but realistic-looking response that matches our OpenAPI contract.
-    Later, we will replace this stub with the real simulation engine.
-    """
-    return SimulateResponse(
+    run_id = str(uuid.uuid4())
+
+    response = SimulateResponse(
+        run_id=run_id,
         total_boarding_time_sec=1830,
         time_to_50_percent_sec=740,
         time_to_90_percent_sec=1540,
@@ -109,5 +115,38 @@ async def simulate(req: SimulateRequest) -> SimulateResponse:
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions(flights_per_year=1825),
+        assumptions=Assumptions()
     )
+
+    # Store result so SimulationRunner can fetch by /simulation-result/{run_id}
+    RUN_STORAGE[run_id] = response
+
+    return response
+
+
+# -----------------------------------------
+# Fetch Simulation Result
+# -----------------------------------------
+
+@app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
+async def get_simulation_result(run_id: str):
+    """
+    Fetch a simulation result by run_id.
+    Used by SimulationRunner page in Base44.
+    """
+    if run_id not in RUN_STORAGE:
+        raise HTTPException(status_code=404, detail="Run ID not found")
+    
+    return RUN_STORAGE[run_id]
+
+
+# -----------------------------------------
+# Health Check Endpoint
+# -----------------------------------------
+
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "message": "Boarding.ai Simulation API is running"
+    }
