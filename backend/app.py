@@ -1,10 +1,13 @@
 # backend/app.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional, Dict
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
+
+origins = ["*"]  # you can later restrict this to ["https://app.base44.com"]
+
 
 # -----------------------------------------
 # FastAPI Setup
@@ -18,9 +21,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # Allow all origins for Base44 during development
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],   # allow POST, OPTIONS, etc.
     allow_headers=["*"],
 )
 
@@ -92,6 +95,11 @@ RUN_STORAGE: Dict[str, SimulateResponse] = {}
 # -----------------------------------------
 # Simulation Endpoint (Stub)
 # -----------------------------------------
+@app.options("/simulate")
+async def simulate_options():
+    # Let CORSMiddleware attach the CORS headers;
+    # just return an empty 204 response.
+    return Response(status_code=204)
 
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
