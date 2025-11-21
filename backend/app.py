@@ -1,13 +1,10 @@
 # backend/app.py
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-
-origins = ["*"]  # you can later restrict this to ["https://app.base44.com"]
-
 
 # -----------------------------------------
 # FastAPI Setup
@@ -16,14 +13,15 @@ origins = ["*"]  # you can later restrict this to ["https://app.base44.com"]
 app = FastAPI(
     title="Boarding.ai Simulation API",
     version="1.1.0",
-    description="Simulation engine backend for Boarding.ai"
+    description="Simulation engine backend for Boarding.ai",
 )
 
+# CORS: allow any origin, no credentials (simplest setup for Base44 preview)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],   # allow POST, OPTIONS, etc.
+    allow_origins=["*"],        # you can later lock this down
+    allow_credentials=False,    # keep False when using "*"
+    allow_methods=["*"],        # allow POST, OPTIONS, etc.
     allow_headers=["*"],
 )
 
@@ -92,14 +90,10 @@ class SimulateResponse(BaseModel):
 
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
+
 # -----------------------------------------
 # Simulation Endpoint (Stub)
 # -----------------------------------------
-@app.options("/simulate")
-async def simulate_options():
-    # Let CORSMiddleware attach the CORS headers;
-    # just return an empty 204 response.
-    return Response(status_code=204)
 
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
@@ -123,12 +117,10 @@ async def simulate(req: SimulateRequest):
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions()
+        assumptions=Assumptions(),
     )
 
-    # Store result so SimulationRunner can fetch by /simulation-result/{run_id}
     RUN_STORAGE[run_id] = response
-
     return response
 
 
@@ -144,17 +136,17 @@ async def get_simulation_result(run_id: str):
     """
     if run_id not in RUN_STORAGE:
         raise HTTPException(status_code=404, detail="Run ID not found")
-    
+
     return RUN_STORAGE[run_id]
 
 
 # -----------------------------------------
-# Health Check Endpoint
+# Health Check
 # -----------------------------------------
 
 @app.get("/")
 def root():
     return {
         "status": "ok",
-        "message": "Boarding.ai Simulation API is running"
+        "message": "Boarding.ai Simulation API is running",
     }
