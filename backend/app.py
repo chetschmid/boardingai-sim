@@ -1,14 +1,13 @@
 # backend/app.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional, Dict
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORTANT
 import uuid
 
-# -----------------------------------------
-# FastAPI Setup
-# -----------------------------------------
+# allow everything for now (we can restrict later)
+origins = ["*"]
 
 app = FastAPI(
     title="Boarding.ai Simulation API",
@@ -16,12 +15,11 @@ app = FastAPI(
     description="Simulation engine backend for Boarding.ai",
 )
 
-# CORS: allow any origin, no credentials (simplest setup for Base44 preview)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # you can later lock this down
-    allow_credentials=False,    # keep False when using "*"
-    allow_methods=["*"],        # allow POST, OPTIONS, etc.
+    allow_origins=origins,          # ["*"] for now
+    allow_credentials=True,
+    allow_methods=["*"],            # allow POST, OPTIONS, etc.
     allow_headers=["*"],
 )
 
@@ -97,6 +95,8 @@ RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
+    ...
+
     """
     Temporary simulation stub — returns realistic placeholder data.
     Later, replace the logic with the real simulation engine.
