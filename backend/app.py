@@ -1,14 +1,10 @@
 # backend/app.py
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict
+from fastapi.middleware.cors import CORSMiddleware
 import uuid
-
-# -----------------------------------------
-# FastAPI app + CORS
-# -----------------------------------------
 
 app = FastAPI(
     title="Boarding.ai Simulation API",
@@ -16,23 +12,31 @@ app = FastAPI(
     description="Simulation engine backend for Boarding.ai",
 )
 
-# For now we allow all origins so that:
-# - Base44 editor/preview
-# - Base44 production
-# - ngrok tunnel
-# - localhost
-# can all talk to the API without CORS headaches.
+# ------------------------------------------------------
+# FIXED CORS — allow Base44 Editor + ngrok + localhost
+# ------------------------------------------------------
+
+ALLOWED_ORIGINS = [
+    "*",  # safest for dev
+    "https://app.base44.com",
+    "https://*.base44.com",
+    "https://*.modal.host",
+    "https://hylophagous-candis-zealous.ngrok-free.dev",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # you can tighten this later if you want
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],          # allows POST, GET, OPTIONS, etc.
+    allow_methods=["*"],        # <-- OPTIONS allowed
     allow_headers=["*"],
 )
 
-# -----------------------------------------
-# Data Models
-# -----------------------------------------
+# ------------------------------------------------------
+# Models
+# ------------------------------------------------------
 
 class Aircraft(BaseModel):
     type: str
@@ -40,20 +44,16 @@ class Aircraft(BaseModel):
     seats_per_row: int
     num_aisles: int
 
-
 class Load(BaseModel):
     load_factor: float
-
 
 class Boarding(BaseModel):
     method: str
     baseline_method: str
 
-
 class Bags(BaseModel):
     carry_on_rate: float
     bin_capacity_per_row: int
-
 
 class Behavior(BaseModel):
     walking_speed_mean: Optional[float] = 1.3
@@ -61,12 +61,10 @@ class Behavior(BaseModel):
     seat_slide_time_mean: Optional[float] = 3.0
     late_pax_rate: Optional[float] = 0.02
 
-
 class Controls(BaseModel):
     time_step: Optional[float] = 0.5
     num_runs: Optional[int] = 25
     cost_per_minute_delay: Optional[float] = 75.0
-
 
 class SimulateRequest(BaseModel):
     aircraft: Aircraft
@@ -76,48 +74,45 @@ class SimulateRequest(BaseModel):
     behavior: Optional[Behavior] = None
     controls: Optional[Controls] = None
 
-
 class Assumptions(BaseModel):
     flights_per_year: Optional[int] = 1825
-
 
 class SimulateResponse(BaseModel):
     run_id: str
     total_boarding_time_sec: int
-    time_to_50_percent_sec: Optional[int] = None
-    time_to_90_percent_sec: Optional[int] = None
+    time_to_50_percent_sec: Optional[int]
+    time_to_90_percent_sec: Optional[int]
     num_aisle_conflicts: int
-    max_aisle_queue_length: Optional[int] = None
-    avg_wait_time_per_pax_sec: Optional[float] = None
+    max_aisle_queue_length: Optional[int]
+    avg_wait_time_per_pax_sec: Optional[float]
     baseline_boarding_time_sec: int
     delta_vs_baseline_sec: int
     percent_faster_vs_baseline: float
     dollars_saved_per_flight: float
     dollars_saved_per_year: float
-    assumptions: Optional[Assumptions] = None
+    assumptions: Optional[Assumptions]
 
-
-# -----------------------------------------
-# In-memory run storage
-# -----------------------------------------
-
+# ------------------------------------------------------
+# Local run storage
+# ------------------------------------------------------
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
 
-# -----------------------------------------
-# Simulation Endpoint (Stub)
-# -----------------------------------------
+# ------------------------------------------------------
+# FIX: ensure OPTIONS is valid for `/simulate`
+# ------------------------------------------------------
+@app.options("/simulate")
+async def options_simulate():
+    return {"status": "ok"}
 
+
+# ------------------------------------------------------
+# Simulation endpoint
+# ------------------------------------------------------
 @app.post("/simulate", response_model=SimulateResponse)
-async def simulate(req: SimulateRequest) -> SimulateResponse:
-    """
-    Temporary simulation stub — returns realistic placeholder data.
-    Later, replace the logic with the real simulation engine.
-    """
-
+async def simulate(req: SimulateRequest):
     run_id = str(uuid.uuid4())
 
-    # Hard-coded stub numbers for now
     response = SimulateResponse(
         run_id=run_id,
         total_boarding_time_sec=1830,
@@ -138,26 +133,19 @@ async def simulate(req: SimulateRequest) -> SimulateResponse:
     return response
 
 
-# -----------------------------------------
-# Fetch Simulation Result
-# -----------------------------------------
-
+# ------------------------------------------------------
+# Fetch simulation result
+# ------------------------------------------------------
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
-async def get_simulation_result(run_id: str) -> SimulateResponse:
-    """
-    Fetch a simulation result by run_id.
-    Used by SimulationRunner page in Base44.
-    """
+async def get_simulation_result(run_id: str):
     if run_id not in RUN_STORAGE:
         raise HTTPException(status_code=404, detail="Run ID not found")
-
     return RUN_STORAGE[run_id]
 
 
-# -----------------------------------------
-# Health Check
-# -----------------------------------------
-
+# ------------------------------------------------------
+# Health check
+# ------------------------------------------------------
 @app.get("/")
 def root():
     return {
