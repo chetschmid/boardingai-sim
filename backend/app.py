@@ -1,6 +1,6 @@
 # backend/app.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional, Dict
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,24 +13,15 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------
-# FIXED CORS — allow Base44 Editor + ngrok + localhost
+# CORS (dev-friendly: allow HTTPS origins + localhost)
 # ------------------------------------------------------
-
-ALLOWED_ORIGINS = [
-    "*",  # safest for dev
-    "https://app.base44.com",
-    "https://*.base44.com",
-    "https://*.modal.host",
-    "https://hylophagous-candis-zealous.ngrok-free.dev",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],        # <-- OPTIONS allowed
+    allow_origins=[],                 # we'll use the regex below instead
+    allow_origin_regex=r"https://.*", # any https origin (Base44 preview, etc.)
+    allow_credentials=False,          # must be False if we want wildcard-style CORS
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -95,22 +86,28 @@ class SimulateResponse(BaseModel):
 # ------------------------------------------------------
 # Local run storage
 # ------------------------------------------------------
+
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
+# ------------------------------------------------------
+# Preflight for /simulate  (fixes 405 on OPTIONS)
+# ------------------------------------------------------
 
-# ------------------------------------------------------
-# FIX: ensure OPTIONS is valid for `/simulate`
-# ------------------------------------------------------
 @app.options("/simulate")
 async def options_simulate():
-    return {"status": "ok"}
-
+    # Just say "OK" so the browser is allowed to POST
+    return Response(status_code=200)
 
 # ------------------------------------------------------
-# Simulation endpoint
+# Simulation endpoint (stub)
 # ------------------------------------------------------
+
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
+    """
+    Temporary simulation stub — returns realistic placeholder data.
+    Later, replace this with the real simulation engine.
+    """
     run_id = str(uuid.uuid4())
 
     response = SimulateResponse(
@@ -132,20 +129,20 @@ async def simulate(req: SimulateRequest):
     RUN_STORAGE[run_id] = response
     return response
 
-
 # ------------------------------------------------------
 # Fetch simulation result
 # ------------------------------------------------------
+
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
 async def get_simulation_result(run_id: str):
     if run_id not in RUN_STORAGE:
         raise HTTPException(status_code=404, detail="Run ID not found")
     return RUN_STORAGE[run_id]
 
-
 # ------------------------------------------------------
 # Health check
 # ------------------------------------------------------
+
 @app.get("/")
 def root():
     return {
