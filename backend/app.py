@@ -1,9 +1,9 @@
 # backend/app.py
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict
-from fastapi.middleware.cors import CORSMiddleware
 import uuid
 
 # -----------------------------------------
@@ -16,13 +16,17 @@ app = FastAPI(
     description="Simulation engine backend for Boarding.ai",
 )
 
-# For development, allow everything (frontends from Base44, modal.host, ngrok, etc.)
-# We can tighten this later.
+# For now we allow all origins so that:
+# - Base44 editor/preview
+# - Base44 production
+# - ngrok tunnel
+# - localhost
+# can all talk to the API without CORS headaches.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # <-- main fix: allow any origin for now
+    allow_origins=["*"],          # you can tighten this later if you want
     allow_credentials=True,
-    allow_methods=["*"],          # allow POST, OPTIONS, etc.
+    allow_methods=["*"],          # allows POST, GET, OPTIONS, etc.
     allow_headers=["*"],
 )
 
@@ -36,16 +40,20 @@ class Aircraft(BaseModel):
     seats_per_row: int
     num_aisles: int
 
+
 class Load(BaseModel):
     load_factor: float
+
 
 class Boarding(BaseModel):
     method: str
     baseline_method: str
 
+
 class Bags(BaseModel):
     carry_on_rate: float
     bin_capacity_per_row: int
+
 
 class Behavior(BaseModel):
     walking_speed_mean: Optional[float] = 1.3
@@ -53,10 +61,12 @@ class Behavior(BaseModel):
     seat_slide_time_mean: Optional[float] = 3.0
     late_pax_rate: Optional[float] = 0.02
 
+
 class Controls(BaseModel):
     time_step: Optional[float] = 0.5
     num_runs: Optional[int] = 25
     cost_per_minute_delay: Optional[float] = 75.0
+
 
 class SimulateRequest(BaseModel):
     aircraft: Aircraft
@@ -66,8 +76,10 @@ class SimulateRequest(BaseModel):
     behavior: Optional[Behavior] = None
     controls: Optional[Controls] = None
 
+
 class Assumptions(BaseModel):
     flights_per_year: Optional[int] = 1825
+
 
 class SimulateResponse(BaseModel):
     run_id: str
@@ -97,7 +109,7 @@ RUN_STORAGE: Dict[str, SimulateResponse] = {}
 # -----------------------------------------
 
 @app.post("/simulate", response_model=SimulateResponse)
-async def simulate(req: SimulateRequest):
+async def simulate(req: SimulateRequest) -> SimulateResponse:
     """
     Temporary simulation stub — returns realistic placeholder data.
     Later, replace the logic with the real simulation engine.
@@ -105,6 +117,7 @@ async def simulate(req: SimulateRequest):
 
     run_id = str(uuid.uuid4())
 
+    # Hard-coded stub numbers for now
     response = SimulateResponse(
         run_id=run_id,
         total_boarding_time_sec=1830,
@@ -130,7 +143,7 @@ async def simulate(req: SimulateRequest):
 # -----------------------------------------
 
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
-async def get_simulation_result(run_id: str):
+async def get_simulation_result(run_id: str) -> SimulateResponse:
     """
     Fetch a simulation result by run_id.
     Used by SimulationRunner page in Base44.
