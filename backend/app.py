@@ -15,13 +15,23 @@ app = FastAPI(
     description="Simulation engine backend for Boarding.ai",
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,          # ["*"] for now
+    allow_origins=[
+        "https://app.base44.com",
+        "https://*.modal.host",
+        "https://*.base44.com",
+        "https://hylophagous-candis-zealous.ngrok-free.dev",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],            # allow POST, OPTIONS, etc.
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # -----------------------------------------
 # Data Models
