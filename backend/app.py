@@ -1,10 +1,11 @@
 # backend/app.py
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict
-from fastapi.middleware.cors import CORSMiddleware
 import uuid
+
 
 app = FastAPI(
     title="Boarding.ai Simulation API",
@@ -13,11 +14,11 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------
-# CORS CONFIG — Allows Base44, ngrok, localhost
+# CORS — allow Base44 Editor + ngrok + localhost
 # ------------------------------------------------------
 
 ALLOWED_ORIGINS = [
-    "*",  # easiest for dev
+    "*",  # easiest/safest for dev
     "https://app.base44.com",
     "https://*.base44.com",
     "https://*.modal.host",
@@ -30,12 +31,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],   # <-- CRITICAL (OPTIONS ALLOWED)
+    allow_methods=["*"],        # <-- OPTIONS allowed
     allow_headers=["*"],
 )
 
 # ------------------------------------------------------
-# MODELS
+# Models
 # ------------------------------------------------------
 
 class Aircraft(BaseModel):
@@ -80,42 +81,41 @@ class Assumptions(BaseModel):
 class SimulateResponse(BaseModel):
     run_id: str
     total_boarding_time_sec: int
-    time_to_50_percent_sec: Optional[int] = None
-    time_to_90_percent_sec: Optional[int] = None
+    time_to_50_percent_sec: Optional[int]
+    time_to_90_percent_sec: Optional[int]
     num_aisle_conflicts: int
-    max_aisle_queue_length: Optional[int] = None
-    avg_wait_time_per_pax_sec: Optional[float] = None
+    max_aisle_queue_length: Optional[int]
+    avg_wait_time_per_pax_sec: Optional[float]
     baseline_boarding_time_sec: int
     delta_vs_baseline_sec: int
     percent_faster_vs_baseline: float
     dollars_saved_per_flight: float
     dollars_saved_per_year: float
-    assumptions: Optional[Assumptions] = None
+    assumptions: Optional[Assumptions]
+
 
 # ------------------------------------------------------
-# LOCAL STORAGE
+# Local run storage
 # ------------------------------------------------------
-
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
-# ------------------------------------------------------
-# FIX: OPTIONS HANDLER
-# ------------------------------------------------------
 
+# ------------------------------------------------------
+# **VALID OPTIONS ENDPOINT**
+# ------------------------------------------------------
 @app.options("/simulate")
 async def simulate_options():
     return Response(status_code=200)
 
-# ------------------------------------------------------
-# SIMULATE ENDPOINT
-# ------------------------------------------------------
 
+# ------------------------------------------------------
+# Simulation endpoint
+# ------------------------------------------------------
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
-
     run_id = str(uuid.uuid4())
 
-    response = SimulateResponse(
+    res = SimulateResponse(
         run_id=run_id,
         total_boarding_time_sec=1830,
         time_to_50_percent_sec=740,
@@ -128,29 +128,26 @@ async def simulate(req: SimulateRequest):
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions(),
+        assumptions=Assumptions()
     )
 
-    RUN_STORAGE[run_id] = response
-    return response
+    RUN_STORAGE[run_id] = res
+    return res
+
 
 # ------------------------------------------------------
-# RESULT FETCH
+# Fetch simulation result
 # ------------------------------------------------------
-
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
 async def get_simulation_result(run_id: str):
     if run_id not in RUN_STORAGE:
         raise HTTPException(status_code=404, detail="Run ID not found")
     return RUN_STORAGE[run_id]
 
-# ------------------------------------------------------
-# HEALTH CHECK
-# ------------------------------------------------------
 
+# ------------------------------------------------------
+# Health check
+# ------------------------------------------------------
 @app.get("/")
 def root():
-    return {
-        "status": "ok",
-        "message": "Boarding.ai Simulation API is running",
-    }
+    return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
