@@ -1,6 +1,6 @@
 # backend/app.py
 
-from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -12,12 +12,12 @@ app = FastAPI(
     description="Simulation engine backend for Boarding.ai",
 )
 
-# ------------------------------------------------------
-# CORS — allow Base44 Editor + ngrok + localhost
-# ------------------------------------------------------
+# ----------------------------
+# CORS (dev-friendly)
+# ----------------------------
 
 ALLOWED_ORIGINS = [
-    "*",  # easiest for dev; we can lock down later
+    "*",
     "https://app.base44.com",
     "https://*.base44.com",
     "https://*.modal.host",
@@ -30,13 +30,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],        # includes OPTIONS
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ------------------------------------------------------
+# ----------------------------
 # Models
-# ------------------------------------------------------
+# ----------------------------
 
 class Aircraft(BaseModel):
     type: str
@@ -92,44 +92,30 @@ class SimulateResponse(BaseModel):
     dollars_saved_per_year: float
     assumptions: Optional[Assumptions]
 
-
-# ------------------------------------------------------
+# ----------------------------
 # Local run storage
-# ------------------------------------------------------
+# ----------------------------
+
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
+# ----------------------------
+# VALID OPTIONS HANDLER
+# ----------------------------
 
-# ------------------------------------------------------
-# Debug: show methods registered for /simulate
-# ------------------------------------------------------
-@app.on_event("startup")
-async def show_routes():
-    for r in app.routes:
-        if getattr(r, "path", None) == "/simulate":
-            print("🔍 /simulate methods:", getattr(r, "methods", None))
+@app.options("/simulate")
+async def simulate_options():
+    return Response(status_code=200)
 
+# ----------------------------
+# Simulation endpoint
+# ----------------------------
 
-# ------------------------------------------------------
-# Unified route: POST + OPTIONS
-# ------------------------------------------------------
-@app.api_route("/simulate", methods=["POST", "OPTIONS"], response_model=SimulateResponse)
-async def simulate_endpoint(
-    request: Request,
-    req: Optional[SimulateRequest] = None,
-):
-    # Handle preflight
-    if request.method == "OPTIONS":
-        # CORS middleware will add the headers;
-        # we just need to say "OK, this method exists"
-        return Response(status_code=200)
-
-    # Normal POST
-    if req is None:
-        raise HTTPException(status_code=400, detail="Missing request body")
+@app.post("/simulate", response_model=SimulateResponse)
+async def simulate(req: SimulateRequest):
 
     run_id = str(uuid.uuid4())
 
-    res = SimulateResponse(
+    result = SimulateResponse(
         run_id=run_id,
         total_boarding_time_sec=1830,
         time_to_50_percent_sec=740,
@@ -142,26 +128,26 @@ async def simulate_endpoint(
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions(),
+        assumptions=Assumptions()
     )
 
-    RUN_STORAGE[run_id] = res
-    return res
+    RUN_STORAGE[run_id] = result
+    return result
 
+# ----------------------------
+# Fetch stored results
+# ----------------------------
 
-# ------------------------------------------------------
-# Fetch simulation result
-# ------------------------------------------------------
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
-async def get_simulation_result(run_id: str):
+async def simulation_result(run_id: str):
     if run_id not in RUN_STORAGE:
         raise HTTPException(status_code=404, detail="Run ID not found")
     return RUN_STORAGE[run_id]
 
-
-# ------------------------------------------------------
+# ----------------------------
 # Health check
-# ------------------------------------------------------
+# ----------------------------
+
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
