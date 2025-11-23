@@ -1,6 +1,6 @@
 # backend/app.py
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -17,7 +17,7 @@ app = FastAPI(
 # ------------------------------------------------------
 
 ALLOWED_ORIGINS = [
-    "*",
+    "*",  # easiest for dev; we can lock down later
     "https://app.base44.com",
     "https://*.base44.com",
     "https://*.modal.host",
@@ -30,7 +30,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],        # <-- OPTIONS allowed
+    allow_methods=["*"],        # includes OPTIONS
     allow_headers=["*"],
 )
 
@@ -94,25 +94,39 @@ class SimulateResponse(BaseModel):
 
 
 # ------------------------------------------------------
-# Run storage
+# Local run storage
 # ------------------------------------------------------
-
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
-# ------------------------------------------------------
-# VALID OPTIONS ENDPOINT
-# ------------------------------------------------------
-
-@app.options("/simulate")
-async def simulate_options():
-    return Response(status_code=200)
 
 # ------------------------------------------------------
-# Simulation endpoint
+# Debug: show methods registered for /simulate
 # ------------------------------------------------------
+@app.on_event("startup")
+async def show_routes():
+    for r in app.routes:
+        if getattr(r, "path", None) == "/simulate":
+            print("🔍 /simulate methods:", getattr(r, "methods", None))
 
-@app.post("/simulate", response_model=SimulateResponse)
-async def simulate(req: SimulateRequest):
+
+# ------------------------------------------------------
+# Unified route: POST + OPTIONS
+# ------------------------------------------------------
+@app.api_route("/simulate", methods=["POST", "OPTIONS"], response_model=SimulateResponse)
+async def simulate_endpoint(
+    request: Request,
+    req: Optional[SimulateRequest] = None,
+):
+    # Handle preflight
+    if request.method == "OPTIONS":
+        # CORS middleware will add the headers;
+        # we just need to say "OK, this method exists"
+        return Response(status_code=200)
+
+    # Normal POST
+    if req is None:
+        raise HTTPException(status_code=400, detail="Missing request body")
+
     run_id = str(uuid.uuid4())
 
     res = SimulateResponse(
@@ -128,26 +142,26 @@ async def simulate(req: SimulateRequest):
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions()
+        assumptions=Assumptions(),
     )
 
     RUN_STORAGE[run_id] = res
     return res
 
-# ------------------------------------------------------
-# Fetch result
-# ------------------------------------------------------
 
+# ------------------------------------------------------
+# Fetch simulation result
+# ------------------------------------------------------
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
 async def get_simulation_result(run_id: str):
     if run_id not in RUN_STORAGE:
         raise HTTPException(status_code=404, detail="Run ID not found")
     return RUN_STORAGE[run_id]
 
-# ------------------------------------------------------
-# Health
-# ------------------------------------------------------
 
+# ------------------------------------------------------
+# Health check
+# ------------------------------------------------------
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
