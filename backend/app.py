@@ -17,7 +17,7 @@ app = FastAPI(
 # ----------------------------
 
 ALLOWED_ORIGINS = [
-    "*",
+    "*",  # fine for dev
     "https://app.base44.com",
     "https://*.base44.com",
     "https://*.modal.host",
@@ -30,7 +30,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],   # <-- lets FastAPI/Starlette handle OPTIONS
     allow_headers=["*"],
 )
 
@@ -99,20 +99,21 @@ class SimulateResponse(BaseModel):
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
 # ----------------------------
-# VALID OPTIONS HANDLER
+# OPTIONAL explicit OPTIONS handler
+# (nice to keep for debugging)
 # ----------------------------
 
 @app.options("/simulate")
 async def simulate_options():
+    # If this is wired correctly you should see 200 OK on an OPTIONS request
     return Response(status_code=200)
 
 # ----------------------------
-# Simulation endpoint
+# Simulation endpoint (stub)
 # ----------------------------
 
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
-
     run_id = str(uuid.uuid4())
 
     result = SimulateResponse(
@@ -128,7 +129,7 @@ async def simulate(req: SimulateRequest):
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions()
+        assumptions=Assumptions(),
     )
 
     RUN_STORAGE[run_id] = result
@@ -151,3 +152,9 @@ async def simulation_result(run_id: str):
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
+
+# ----------------------------
+# Debug: so we KNOW this file was imported
+# ----------------------------
+
+print("🚀 Loaded Boarding.ai API (with OPTIONS /simulate) from backend/app.py")
