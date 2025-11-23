@@ -13,17 +13,25 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------
-# CORS – DEV MODE: allow everything
+# CORS — allow Base44 Editor + ngrok + localhost
 # ------------------------------------------------------
-# This is intentionally wide open just so we can get Base44 working.
-# We can lock this down later.
+
+ALLOWED_ORIGINS = [
+    "*",
+    "https://app.base44.com",
+    "https://*.base44.com",
+    "https://*.modal.host",
+    "https://hylophagous-candis-zealous.ngrok-free.dev",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],         # allow any origin (dev only)
-    allow_methods=["*"],         # allow all methods, including OPTIONS
-    allow_headers=["*"],         # allow any headers
-    allow_credentials=False,     # must be False when allow_origins == ["*"]
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],        # <-- OPTIONS allowed
+    allow_headers=["*"],
 )
 
 # ------------------------------------------------------
@@ -84,32 +92,25 @@ class SimulateResponse(BaseModel):
     dollars_saved_per_year: float
     assumptions: Optional[Assumptions]
 
+
 # ------------------------------------------------------
-# Local run storage
+# Run storage
 # ------------------------------------------------------
+
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
 # ------------------------------------------------------
-# Debug: show routes on startup
+# VALID OPTIONS ENDPOINT
 # ------------------------------------------------------
-@app.on_event("startup")
-async def show_routes():
-    print("🚀 Boarding.ai API starting. Registered routes:")
-    for r in app.router.routes:
-        methods = getattr(r, "methods", None)
-        print("  -", r.path, methods)
 
-# ------------------------------------------------------
-# Explicit OPTIONS endpoint for /simulate
-# ------------------------------------------------------
 @app.options("/simulate")
 async def simulate_options():
-    # No body needed; CORS middleware will add the right headers.
     return Response(status_code=200)
 
 # ------------------------------------------------------
-# Simulation endpoint (stubbed)
+# Simulation endpoint
 # ------------------------------------------------------
+
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
     run_id = str(uuid.uuid4())
@@ -127,15 +128,16 @@ async def simulate(req: SimulateRequest):
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions(),
+        assumptions=Assumptions()
     )
 
     RUN_STORAGE[run_id] = res
     return res
 
 # ------------------------------------------------------
-# Fetch simulation result
+# Fetch result
 # ------------------------------------------------------
+
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
 async def get_simulation_result(run_id: str):
     if run_id not in RUN_STORAGE:
@@ -143,8 +145,9 @@ async def get_simulation_result(run_id: str):
     return RUN_STORAGE[run_id]
 
 # ------------------------------------------------------
-# Health check
+# Health
 # ------------------------------------------------------
+
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
