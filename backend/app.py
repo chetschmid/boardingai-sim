@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from typing import Optional, Dict
 import uuid
 
-
 app = FastAPI(
     title="Boarding.ai Simulation API",
     version="1.1.0",
@@ -14,31 +13,19 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------
-# CORS — allow Base44 Editor + ngrok + localhost
+# CORS — fully open for dev (this guarantees OPTIONS works)
 # ------------------------------------------------------
-
-ALLOWED_ORIGINS = [
-    "*",  # easiest/safest for dev
-    "https://app.base44.com",
-    "https://*.base44.com",
-    "https://*.modal.host",
-    "https://hylophagous-candis-zealous.ngrok-free.dev",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],       # <-- allow all origins
     allow_credentials=True,
-    allow_methods=["*"],        # <-- OPTIONS allowed
-    allow_headers=["*"],
+    allow_methods=["*"],       # <-- allow POST + OPTIONS
+    allow_headers=["*"],       # <-- allow all headers
 )
 
 # ------------------------------------------------------
-# Models
+# MODELS
 # ------------------------------------------------------
-
 class Aircraft(BaseModel):
     type: str
     num_rows: int
@@ -93,26 +80,24 @@ class SimulateResponse(BaseModel):
     dollars_saved_per_year: float
     assumptions: Optional[Assumptions]
 
-
 # ------------------------------------------------------
-# Local run storage
+# In-memory store
 # ------------------------------------------------------
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
-
 # ------------------------------------------------------
-# **VALID OPTIONS ENDPOINT**
+# **OPTIONS handler**
 # ------------------------------------------------------
 @app.options("/simulate")
 async def simulate_options():
     return Response(status_code=200)
 
-
 # ------------------------------------------------------
-# Simulation endpoint
+# POST /simulate (main endpoint)
 # ------------------------------------------------------
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
+
     run_id = str(uuid.uuid4())
 
     res = SimulateResponse(
@@ -128,15 +113,14 @@ async def simulate(req: SimulateRequest):
         percent_faster_vs_baseline=9.4,
         dollars_saved_per_flight=225.0,
         dollars_saved_per_year=410000.0,
-        assumptions=Assumptions()
+        assumptions=Assumptions(),
     )
 
     RUN_STORAGE[run_id] = res
     return res
 
-
 # ------------------------------------------------------
-# Fetch simulation result
+# GET /simulation-result/{run_id}
 # ------------------------------------------------------
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
 async def get_simulation_result(run_id: str):
@@ -144,10 +128,11 @@ async def get_simulation_result(run_id: str):
         raise HTTPException(status_code=404, detail="Run ID not found")
     return RUN_STORAGE[run_id]
 
-
 # ------------------------------------------------------
 # Health check
 # ------------------------------------------------------
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
+
+print("🔥 Loaded Boarding.ai API with working OPTIONS /simulate")
