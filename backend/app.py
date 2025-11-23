@@ -13,19 +13,23 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------
-# CORS — fully open for dev (this guarantees OPTIONS works)
+# CORS – DEV MODE: allow everything
 # ------------------------------------------------------
+# This is intentionally wide open just so we can get Base44 working.
+# We can lock this down later.
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # <-- allow all origins
-    allow_credentials=True,
-    allow_methods=["*"],       # <-- allow POST + OPTIONS
-    allow_headers=["*"],       # <-- allow all headers
+    allow_origins=["*"],         # allow any origin (dev only)
+    allow_methods=["*"],         # allow all methods, including OPTIONS
+    allow_headers=["*"],         # allow any headers
+    allow_credentials=False,     # must be False when allow_origins == ["*"]
 )
 
 # ------------------------------------------------------
-# MODELS
+# Models
 # ------------------------------------------------------
+
 class Aircraft(BaseModel):
     type: str
     num_rows: int
@@ -81,23 +85,33 @@ class SimulateResponse(BaseModel):
     assumptions: Optional[Assumptions]
 
 # ------------------------------------------------------
-# In-memory store
+# Local run storage
 # ------------------------------------------------------
 RUN_STORAGE: Dict[str, SimulateResponse] = {}
 
 # ------------------------------------------------------
-# **OPTIONS handler**
+# Debug: show routes on startup
+# ------------------------------------------------------
+@app.on_event("startup")
+async def show_routes():
+    print("🚀 Boarding.ai API starting. Registered routes:")
+    for r in app.router.routes:
+        methods = getattr(r, "methods", None)
+        print("  -", r.path, methods)
+
+# ------------------------------------------------------
+# Explicit OPTIONS endpoint for /simulate
 # ------------------------------------------------------
 @app.options("/simulate")
 async def simulate_options():
+    # No body needed; CORS middleware will add the right headers.
     return Response(status_code=200)
 
 # ------------------------------------------------------
-# POST /simulate (main endpoint)
+# Simulation endpoint (stubbed)
 # ------------------------------------------------------
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
-
     run_id = str(uuid.uuid4())
 
     res = SimulateResponse(
@@ -120,7 +134,7 @@ async def simulate(req: SimulateRequest):
     return res
 
 # ------------------------------------------------------
-# GET /simulation-result/{run_id}
+# Fetch simulation result
 # ------------------------------------------------------
 @app.get("/simulation-result/{run_id}", response_model=SimulateResponse)
 async def get_simulation_result(run_id: str):
@@ -134,5 +148,3 @@ async def get_simulation_result(run_id: str):
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Boarding.ai Simulation API is running"}
-
-print("🔥 Loaded Boarding.ai API with working OPTIONS /simulate")
